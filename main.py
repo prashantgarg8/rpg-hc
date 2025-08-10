@@ -1,7 +1,9 @@
+
 import random
 import time
 import os
 from typing import List, Dict
+
 
 try:
     from colorama import init, Fore, Style
@@ -24,60 +26,61 @@ ASCII_LOGO = rf"""
 """
 
 class Player:
-    def __init__(self, name, cls):
+    def __init__(self, name, player_class):
         self.name = name
-        self.cls = cls
-        self.lvl = 1
-        self.xp = 0
-        self.next_xp = 50
-        self.hp = self.max_hp = cls['hp']
-        self.atk = list(cls['attack'])
-        self.gold = 0
-        self.items = []
-        self.gear = cls['tools'][:]
-        self.moves = []
-        self.badges = set()
-        self.spot = "Coworking Space"
-        self.breaks = 3
+        self.player_class = player_class
+        self.level = 1
+        self.exp = 0
+        self.next_level_exp = 50
+        self.hp = self.max_hp = player_class['hp']
+        self.attack = list(player_class['attack'])
+        self.coins = 0
+        self.inventory = []
+        self.tools = player_class['tools'][:]
+        self.skills = []
+        self.achievements = set()
+        self.location = "Coworking Space"
+        self.rests_left = 3
 
-    def add_xp(self, amt):
-        self.xp += amt
-        while self.xp >= self.next_xp:
-            self.xp -= self.next_xp
-            self.lvl += 1
+    def gain_exp(self, amount):
+        self.exp += amount
+        while self.exp >= self.next_level_exp:
+            self.exp -= self.next_level_exp
+            self.level += 1
             self.max_hp += 20
-            self.hp = self.max_hp
-            self.atk[0] += 2
-            self.atk[1] += 2
-            self.next_xp = int(self.next_xp * 1.4)
-            print(f"{Fore.YELLOW}\nLEVEL UP! Now level {self.lvl}!\n{Style.RESET_ALL}")
-            self.new_move()
+            self.hp = self.max_hp  # heal on levelup
+            self.attack[0] += 2
+            self.attack[1] += 2
+            self.next_level_exp = int(self.next_level_exp * 1.4)
+            print(f"{Fore.YELLOW}\nLEVEL UP! Now level {self.level}!\n{Style.RESET_ALL}")
+            self.unlock_skill()
 
-    def new_move(self):
-        opts = ["Debug Surge", "Stack Overflow", "Pizza Heal"]
-        for m in opts:
-            if m not in self.moves:
-                self.moves.append(m)
-                print(f"{Fore.MAGENTA}Unlocked skill: {m}!{Style.RESET_ALL}")
+    def unlock_skill(self):
+        skill_options = ["Debug Surge", "Stack Overflow", "Pizza Heal"]
+        for s in skill_options:
+            if s not in self.skills:
+                self.skills.append(s)
+                print(f"{Fore.MAGENTA}Unlocked skill: {s}!{Style.RESET_ALL}")
                 break
 
-    def heal(self, amt):
-        self.hp = min(self.max_hp, self.hp + amt)
-        print(f"{Fore.GREEN}Healed for {amt}! HP is now {self.hp}/{self.max_hp}.{Style.RESET_ALL}")
+    def heal(self, amount):
+        self.hp = min(self.max_hp, self.hp + amount)
+        print(f"{Fore.GREEN}Healed for {amount}! HP is now {self.hp}/{self.max_hp}.{Style.RESET_ALL}")
 
 class Enemy:
-    def __init__(self, data: Dict):
-        self.name = data['name']
-        self.max_hp = self.hp = data['hp']
-        self.atk = list(data['attack'])
-        self.xp = data['exp']
-        self.gold = data.get('coins', random.randint(10, 25))
-        self.boss = data.get('is_boss', False)
+    def __init__(self, info: Dict):
+        self.name = info['name']
+        self.max_hp = self.hp = info['hp']
+        self.attack = list(info['attack'])
+        self.exp = info['exp']
+        self.coins = info.get('coins', random.randint(10, 25))
+        self.is_boss = info.get('is_boss', False)
 
-    def think(self, p):
+    def ai_behavior(self, player):
         return 'attack'
 
-CLASSES = {
+
+PLAYER_CLASSES = {
     'Frontend Dev': {
         'hp': 95, 'attack': (7, 17), "tools": ["Laptop", "Wi-Fi", "CSS Flexbox"]
     },
@@ -92,21 +95,22 @@ CLASSES = {
     }
 }
 
-def pick_class() -> Dict:
+def choose_class() -> Dict:
     print("\nChoose your class:")
-    for i, (cls, stats) in enumerate(CLASSES.items(), 1):
+    for i, (cls, stats) in enumerate(PLAYER_CLASSES.items(), 1):
         print(f"{i}) {cls} - HP: {stats['hp']} | ATK: {stats['attack']} | Tools: {', '.join(stats['tools'])}")
     while True:
         choice = input("> ").strip()
         try:
             idx = int(choice)
-            if 1 <= idx <= len(CLASSES):
-                return list(CLASSES.values())[idx-1]
+            if 1 <= idx <= len(PLAYER_CLASSES):
+                return list(PLAYER_CLASSES.values())[idx-1]
         except:
             pass
         print("Invalid. Enter a number to pick your class.")
 
-BUGS = [
+
+ENEMY_TEMPLATES = [
     {"name": "Segmentation Fault", "hp": 45, "attack": (8, 15), "exp": 12},
     {"name": "Merge Conflict", "hp": 55, "attack": (12, 22), "exp": 18},
     {"name": "JavaScript Bug", "hp": 65, "attack": (13, 23), "exp": 24},
@@ -116,151 +120,111 @@ BUGS = [
     {"name": "Legacy Code Dragon", "hp": 160, "attack": (22, 38), "exp": 100, "is_boss": True, "coins": 90}
 ]
 
-def spawn_bug(lvl):
-    if lvl % 5 == 0:
-        return Enemy([b for b in BUGS if b.get("is_boss")][0])
-    opts = [b for b in BUGS if not b.get("is_boss")]
-    base = random.choice(opts)
-    mult = 1 + 0.08*(lvl-1)
-    info = base.copy()
-    info['hp'] = int(info['hp']*mult)
-    info['attack'] = (int(info['attack'][0]*mult), int(info['attack'][1]*mult))
-    info['exp'] = int(info['exp']*mult)
-    info['coins'] = int(base.get('coins', random.randint(10,25))*mult)
+def make_enemy(level):
+    if level % 5 == 0:
+        return Enemy([e for e in ENEMY_TEMPLATES if e.get("is_boss")][0])
+    options = [e for e in ENEMY_TEMPLATES if not e.get("is_boss")]
+    template = random.choice(options)
+    scale = 1 + 0.08*(level-1)
+    info = template.copy()
+    info['hp'] = int(info['hp']*scale)
+    info['attack'] = (int(info['attack'][0]*scale), int(info['attack'][1]*scale))
+    info['exp'] = int(info['exp']*scale)
+    info['coins'] = int(template.get('coins', random.randint(10,25))*scale)
     return Enemy(info)
 
-def hit(attacker, target):
-    dmg = random.randint(*attacker.atk)
+def attack(attacker, defender):
+    dmg = random.randint(*attacker.attack)
     crit = random.random() < 0.10
     if crit:
         dmg = int(dmg*1.5)
         print(f"{Fore.YELLOW}{attacker.name} lands a CRITICAL hit!{Style.RESET_ALL}")
-    target.hp = max(0, target.hp - dmg)
-    print(f"{attacker.name} hits {target.name} for {dmg} damage! ({target.hp}/{target.max_hp} HP left)")
+    defender.hp = max(0, defender.hp - dmg)
+    print(f"{attacker.name} hits {defender.name} for {dmg} damage! ({defender.hp}/{defender.max_hp} HP left)")
 
-def fight(p: Player):
-    bug = spawn_bug(p.lvl)
-    print(f"\n {bug.name} appears! (HP: {bug.hp})")
-    if bug.boss:
-        print(f"{Fore.RED}BOSS FIGHT!{Style.RESET_ALL}")
-
-    buff_left = 0
-
-    while bug.hp > 0 and p.hp > 0:
-        print(f"\n{Fore.CYAN}Your HP: {p.hp}/{p.max_hp} | {bug.name}'s HP: {bug.hp}/{bug.max_hp}{Style.RESET_ALL}")
+def battle(player: Player):
+    enemy = make_enemy(player.level)
+    print(f"\n {enemy.name} jumps out at you! (HP: {enemy.hp})")
+    if enemy.is_boss:
+        print(f"{Fore.RED}BOSS FIGHT! This won't be easy...{Style.RESET_ALL}")
+    while enemy.hp > 0 and player.hp > 0:
+        print(f"\n{Fore.CYAN}Your HP: {player.hp}/{player.max_hp} | {enemy.name}'s HP: {enemy.hp}/{enemy.max_hp}{Style.RESET_ALL}")
         print("1) Attack   2) Use Item   3) Skill   4) Attempt Escape")
         move = input("> ").strip()
         if move == "1":
-            hit(p, bug)
+            attack(player, enemy)
         elif move == "2":
-            use_stuff(p, in_fight=True, target=p)
+            print("Your inventory:", ", ".join([i for i in player.inventory]) or "Empty")
             continue
         elif move == "3":
-            if p.moves:
-                print("Skills:", ", ".join(p.moves))
-                print("Not implemented yet (coming soon!)")
-            else:
-                print("You have no skills yet.")
+            print("Skills:", ", ".join(player.skills) or "None yet.")
             continue
         elif move == "4":
-            if bug.boss:
-                print(f"{Fore.RED}Can't escape this time!{Style.RESET_ALL}")
-            elif random.random() < 0.25:
-                print(f"{Fore.GREEN}You slipped away successfully!{Style.RESET_ALL}")
+            if enemy.is_boss:
+                print(f"{Fore.RED}You can't escape a boss fight!{Style.RESET_ALL}")
+            elif random.random() < 0.3:
+                print(f"{Fore.GREEN}You slipped away safely...{Style.RESET_ALL}")
                 return True
             else:
                 print(f"{Fore.RED}Couldn't escape!{Style.RESET_ALL}")
         else:
             print("Choose a valid move.")
             continue
-
-        if bug.hp > 0:
-            action = random.choices(
-                population=["attack", "heal", "special"],
-                weights=[0.7, 0.15, 0.15], k=1)[0]
-            if action == "attack":
-                hit(bug, p)
-            elif action == "heal":
-                heal_amt = min(25, bug.max_hp-bug.hp)
-                bug.hp += heal_amt
-                print(f"{Fore.BLUE}{bug.name} repairs itself for {heal_amt}!{Style.RESET_ALL}")
-            else:
-                if random.random() < 0.5:
-                    print(f"{bug.name} tries to confuse your code! Lose your next attack turn.")
-                else:
-                    print(f"{bug.name} lags—no effect this turn.")
-
-            if hasattr(p, 'buff_left') and p.buff_left > 0:
-                p.buff_left -= 1
-                if p.buff_left == 0:
-                    p.atk[0] -= 6
-                    p.atk[1] -= 6
-                    print("Your debug buff faded.")
-
-    if p.hp <= 0:
-        print(f"{Fore.LIGHTRED_EX}\nYou burned out...{Style.RESET_ALL}")
+        if enemy.hp > 0:
+            if enemy.ai_behavior(player) == "attack":
+                attack(enemy, player)
+    if player.hp <= 0:
+        print(f"{Fore.LIGHTRED_EX}\nYou burned out. Start hydrating and coding again soon!{Style.RESET_ALL}")
         return False
-    print(f"{Fore.GREEN} Debugged {bug.name}! +{bug.xp} EXP, +{bug.gold} coins!{Style.RESET_ALL}")
-    p.add_xp(bug.xp)
-    p.gold += bug.gold
-    check_badges(p, context="boss" if bug.boss else "win_fight")
+    print(f"{Fore.GREEN} You debugged {enemy.name}! +{enemy.exp} EXP, +{enemy.coins} coins!{Style.RESET_ALL}")
+    player.gain_exp(enemy.exp)
+    player.coins += enemy.coins
     return True
 
-def menu(p: Player):
+
+def main_menu(player: Player):
     while True:
         print("\n--- Main Menu ---")
         print("1) Take On a Challenge")
         print("2) View Stats")
         print("3) Rest (Restore Energy)")
-        print("4) Shop")
-        print("5) Travel")
-        print("6) Achievements")
-        print("7) Quit")
+        print("4) Quit")
         choice = input("> ").strip()
         if choice == "1":
-            ok = fight(p)
-            if not ok:
+            success = battle(player)
+            if not success:
                 break
         elif choice == "2":
-            print(f"\n Name: {p.name}")
-            print(f" Class: {p.cls}")
-            print(f" HP: {p.hp}/{p.max_hp}")
-            print(f" Attack Power: {p.atk}")
-            print(f" Level: {p.lvl}")
-            print(f" EXP: {p.xp}/{p.next_xp}")
-            print(f" Coins: {p.gold}")
-            print(f" Tools: {', '.join(p.gear)}")
-            print(f" Inventory: {', '.join(p.items) or 'Empty'}")
-            print(f" Skills: {', '.join(p.moves) or 'None yet.'}")
+            print(f"\nName: {player.name}")
+            print(f" Class: {list(PLAYER_CLASSES.keys())[list(PLAYER_CLASSES.values()).index(player.player_class)]}")
+            print(f" HP: {player.hp}/{player.max_hp}")
+            print(f" Attack Power: {player.attack}")
+            print(f" Level: {player.level}")
+            print(f" EXP: {player.exp}/{player.next_level_exp}")
+            print(f" Coins: {player.coins}")
+            print(f" Tools: {', '.join(player.tools)}")
+            print(f" Inventory: {', '.join(player.inventory) or 'Empty'}")
+            print(f" Skills: {', '.join(player.skills) or 'None yet.'}")
         elif choice == "3":
-            if p.breaks > 0:
-                p.heal(p.max_hp)
-                p.breaks -= 1
-                print(f"{Fore.BLUE}You feel refreshed! Rests left: {p.breaks}{Style.RESET_ALL}")
-                random_stuff(p, p.spot)
+            if player.rests_left > 0:
+                player.heal(player.max_hp)
+                player.rests_left -= 1
+                print(f"{Fore.BLUE}You feel refreshed! Rest uses left: {player.rests_left}{Style.RESET_ALL}")
             else:
-                print(f"{Fore.RED}No rests left!{Style.RESET_ALL}")
+                print(f"{Fore.RED}No rests left—push through!{Style.RESET_ALL}")
         elif choice == "4":
-            store(p)
-        elif choice == "5":
-            go_places(p)
-        elif choice == "6":
-            show_badges(p)
-        elif choice == "7":
-            print(f"{Fore.CYAN} Thanks for playing Hack Clubber RPG!{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Thanks for playing Hack Clubber RPG!{Style.RESET_ALL}")
             break
         else:
             print("?? Invalid choice.")
-
 def start():
     print(ASCII_LOGO)
     print("Welcome to Hack Clubber RPG!\n")
     name = input("Your Hack Club name: ").strip() or "Hack Clubber"
-    cls = pick_class()
-    p = Player(name, cls)
-    menu(p)
-
-STUFF = {
+    pclass = choose_class()
+    player = Player(name, pclass)
+    main_menu(player)
+ITEMS = {
     "Coffee": {"type": "heal", "power": 40, "cost": 15, "desc": "Restores 40HP instantly."},
     "Energy Drink": {"type": "heal", "power": 80, "cost": 32, "desc": "Restores 80HP but stuns next turn."},
     "Debug Kit": {"type": "buff", "power": 6, "duration": 3, "cost": 30, "desc": "Boost ATK by 6 for 3 turns."},
@@ -268,23 +232,23 @@ STUFF = {
     "Snack Bar": {"type": "heal", "power": 20, "cost": 8, "desc": "Minor HP recovery."},
 }
 
-def store(p):
+def shop(player):
     print(f"\n{Fore.LIGHTYELLOW_EX}== Code Supply Shop =={Style.RESET_ALL}")
     while True:
-        print("Coins:", p.gold)
-        for i, (name, data) in enumerate(STUFF.items(), 1):
-            print(f"{i}. {name} ({data['cost']}g): {data.get('desc','')}")
+        print("Coins:", player.coins)
+        for i, (iname, data) in enumerate(ITEMS.items(), 1):
+            print(f"{i}. {iname} ({data['cost']}g): {data.get('desc','')}")
         print("X. Leave Shop")
         choice = input("Buy what? > ").strip().upper()
         if choice == "X":
             break
         try:
             idx = int(choice)
-            if 1 <= idx <= len(STUFF):
-                item = list(STUFF.keys())[idx-1]
-                if p.gold >= STUFF[item]['cost']:
-                    p.gold -= STUFF[item]['cost']
-                    p.items.append(item)
+            if 1 <= idx <= len(ITEMS):
+                item = list(ITEMS.keys())[idx-1]
+                if player.coins >= ITEMS[item]['cost']:
+                    player.coins -= ITEMS[item]['cost']
+                    player.inventory.append(item)
                     print(f"{Fore.GREEN}Purchased {item}!{Style.RESET_ALL}")
                 else:
                     print("Not enough coins.")
@@ -293,48 +257,48 @@ def store(p):
         except ValueError:
             print("Enter item number or X.")
 
-def use_stuff(p, in_fight=False, target=None):
-    if not p.items:
+def use_item(player, in_battle=False, target=None):
+    if not player.inventory:
         print("Inventory empty!")
         return False
-    print("Inventory:", ", ".join(p.items))
+    print("Inventory:", ", ".join(player.inventory))
     item = input("Use what? ").strip()
-    if item not in p.items:
+    if item not in player.inventory:
         print("Not in inventory.")
         return False
 
-    info = STUFF.get(item)
+    info = ITEMS.get(item)
     if not info:
         print("Unknown item.")
         return False
     if info["type"] == "heal":
-        p.heal(info["power"])
+        player.heal(info["power"])
     elif info["type"] == "buff":
-        if in_fight and target:
-            target.atk[0] += info["power"]
-            target.atk[1] += info["power"]
+        if in_battle and target:
+            target.attack[0] += info["power"]
+            target.attack[1] += info["power"]
             print(f"Attack power increased by {info['power']} for {info['duration']} turns!")
-            target.buff_left = info['duration']
+            target.buff_turns = info['duration']
         else:
             print("Can only use in battle!")
     elif info["type"] == "special":
-        if in_fight and target:
-            target.skip = True
+        if in_battle and target:
+            target.skipped_turn = True
             print("The enemy looks confused... turn skipped!")
         else:
             print("Can only use in battle!")
-
-    p.items.remove(item)
+            
+    player.inventory.remove(item)
     return True
 
-PLACES = [
+LOCATIONS = [
     "Coworking Space",
     "Hackathon",
     "Basement Lab",
     "Rooftop Garden",
     "Mars Hacker Colony"
 ]
-EVENTS = {
+LOCATION_EVENTS = {
     "Hackathon": [
         "A free pizza break! Restore 30HP.",
         "Win mini-hack: gain 25 coins.",
@@ -356,10 +320,9 @@ EVENTS = {
         "Martian finds your bug: gain rare item."
     ]
 }
-
-def go_places(p):
+def travel(player):
     print("\nLocations:")
-    for i, loc in enumerate(PLACES, 1):
+    for i, loc in enumerate(LOCATIONS, 1):
         print(f"{i}) {loc}")
     print("X) Stay put")
     choice = input("Go where? > ").strip().upper()
@@ -367,44 +330,45 @@ def go_places(p):
         return
     try:
         idx = int(choice)
-        if 1 <= idx <= len(PLACES):
-            new_spot = PLACES[idx-1]
-            p.spot = new_spot
-            random_stuff(p, new_spot)
+        if 1 <= idx <= len(LOCATIONS):
+            new_loc = LOCATIONS[idx-1]
+            player.location = new_loc
+            rand_event(player, new_loc)
         else:
             print("Invalid location.")
     except ValueError:
         print("Type number or X.")
 
-def random_stuff(p, spot):
-    if spot in EVENTS and random.random() < 0.6:
-        event = random.choice(EVENTS[spot])
+def rand_event(player, location):
+    if location in LOCATION_EVENTS and random.random() < 0.6:
+        event = random.choice(LOCATION_EVENTS[location])
         print(f"{Fore.LIGHTMAGENTA_EX}Event: {event}{Style.RESET_ALL}")
         if "Restore" in event:
             hp = int([s for s in event.split() if s.isdigit()][0])
-            p.heal(hp)
+            player.heal(hp)
         elif "gain" in event and "coin" in event:
             coins = int([s for s in event.split() if s.isdigit()][0])
-            p.gold += coins
+            player.coins += coins
             print(f"Gained {coins} coins!")
         elif "-hp" in event or "-" in event:
             dmg = int([s for s in event.replace("-"," -").split() if s.lstrip("-").isdigit()][0])
-            p.hp = max(0, p.hp + dmg)
-            print(f"Ouch! HP now {p.hp}")
+            player.hp = max(0, player.hp + dmg)
+            print(f"Ouch! HP now {player.hp}")
         elif "exp" in event:
             exp = int([s for s in event.split() if s.isdigit()][0])
-            p.add_xp(exp)
+            player.gain_exp(exp)
         elif "Debug Kit" in event:
-            p.items.append("Debug Kit")
+            player.inventory.append("Debug Kit")
             print("Found a Debug Kit!")
         elif "snack bar" in event:
-            p.items.append("Snack Bar")
+            player.inventory.append("Snack Bar")
             print("Yum! Got a Snack Bar.")
         elif "rare item" in event:
-            p.items.append("Rubber Duck")
+            player.inventory.append("Rubber Duck")
             print("You got... a Rubber Duck?!")
 
-BADGES = [
+
+ACHIEVEMENTS = [
     ("First Challenge", "Win your first battle."),
     ("Coffee Overdose", "Use 5 Coffee items in one run."),
     ("Mars Adventure", "Travel to Mars Hacker Colony."),
@@ -412,29 +376,145 @@ BADGES = [
     ("Overachiever", "Reach level 5.")
 ]
 
-def check_badges(p, context=None):
-    got = set(p.badges)
-    if p.lvl >= 5:
-        got.add("Overachiever")
-    if p.spot == "Mars Hacker Colony":
-        got.add("Mars Adventure")
-    if any(item == "Coffee" for item in p.items) and p.items.count("Coffee") >= 5:
-        got.add("Coffee Overdose")
-    if context == "win_fight" and p.lvl == 1:
-        got.add("First Challenge")
-    if context == "boss" and p.lvl >= 2:
-        got.add("Boss Buster")
-    for badge, _ in BADGES:
-        if badge in got and badge not in p.badges:
-            print(f"{Fore.YELLOW}Achievement unlocked: {badge}!{Style.RESET_ALL}")
-            p.badges.add(badge)
+def check_achievements(player, context=None):
+    unlocked = set(player.achievements)
+    if player.level >= 5:
+        unlocked.add("Overachiever")
+    if player.location == "Mars Hacker Colony":
+        unlocked.add("Mars Adventure")
+    if any(item == "Coffee" for item in player.inventory) and player.inventory.count("Coffee") >= 5:
+        unlocked.add("Coffee Overdose")
+    if context == "win_battle" and player.level == 1:
+        unlocked.add("First Challenge")
+    if context == "boss" and player.level >= 2:
+        unlocked.add("Boss Buster")
+    for ach, _ in ACHIEVEMENTS:
+        if ach in unlocked and ach not in player.achievements:
+            print(f"{Fore.YELLOW}Achievement unlocked: {ach}!{Style.RESET_ALL}")
+            player.achievements.add(ach)
 
-def show_badges(p):
+def view_achievements(player):
     print("\nAchievements unlocked:")
-    for badge, desc in BADGES:
-        got = badge in p.badges
+    for ach, desc in ACHIEVEMENTS:
+        got = ach in player.achievements
         mark = "[X]" if got else "[ ]"
-        print(f"{mark} {badge}: {desc}")
+        print(f"{mark} {ach}: {desc}")
+
+
+
+def battle(player: Player):
+    enemy = make_enemy(player.level)
+    print(f"\n {enemy.name} appears! (HP: {enemy.hp})")
+    if enemy.is_boss:
+        print(f"{Fore.RED}BOSS FIGHT!{Style.RESET_ALL}")
+
+    player_buff_turns = 0
+
+    while enemy.hp > 0 and player.hp > 0:
+        print(f"\n{Fore.CYAN}Your HP: {player.hp}/{player.max_hp} | {enemy.name}'s HP: {enemy.hp}/{enemy.max_hp}{Style.RESET_ALL}")
+        print("1) Attack   2) Use Item   3) Skill   4) Attempt Escape")
+        move = input("> ").strip()
+        if move == "1":
+            attack(player, enemy)
+        elif move == "2":
+            use_item(player, in_battle=True, target=player)
+            continue
+        elif move == "3":
+            if player.skills:
+                print("Skills:", ", ".join(player.skills))
+                print("Not implemented yet (coming soon!)")
+            else:
+                print("You have no skills yet.")
+            continue
+        elif move == "4":
+            if enemy.is_boss:
+                print(f"{Fore.RED}Can't escape this time!{Style.RESET_ALL}")
+            elif random.random() < 0.25:
+                print(f"{Fore.GREEN}You slipped away successfully!{Style.RESET_ALL}")
+                return True
+            else:
+                print(f"{Fore.RED}Couldn't escape!{Style.RESET_ALL}")
+        else:
+            print("Choose a valid move.")
+            continue
+
+        if enemy.hp > 0:
+            en_move = random.choices(
+                population=["attack", "heal", "special"],
+                weights=[0.7, 0.15, 0.15], k=1)[0]
+            if en_move == "attack":
+                attack(enemy, player)
+            elif en_move == "heal":
+                heal_amt = min(25, enemy.max_hp-enemy.hp)
+                enemy.hp += heal_amt
+                print(f"{Fore.BLUE}{enemy.name} repairs itself for {heal_amt}!{Style.RESET_ALL}")
+            else:
+                if random.random() < 0.5:
+                    print(f"{enemy.name} tries to confuse your code! Lose your next attack turn.")
+                else:
+                    print(f"{enemy.name} lags—no effect this turn.")
+
+            if hasattr(player, 'buff_turns') and player.buff_turns > 0:
+                player.buff_turns -= 1
+                if player.buff_turns == 0:
+                    player.attack[0] -= 6
+                    player.attack[1] -= 6
+                    print("Your debug buff faded.")
+
+    if player.hp <= 0:
+        print(f"{Fore.LIGHTRED_EX}\nYou burned out...{Style.RESET_ALL}")
+        return False
+    print(f"{Fore.GREEN} Debugged {enemy.name}! +{enemy.exp} EXP, +{enemy.coins} coins!{Style.RESET_ALL}")
+    player.gain_exp(enemy.exp)
+    player.coins += enemy.coins
+    check_achievements(player, context="boss" if enemy.is_boss else "win_battle")
+    return True
+
+def main_menu(player: Player):
+    while True:
+        print("\n--- Main Menu ---")
+        print("1) Take On a Challenge")
+        print("2) View Stats")
+        print("3) Rest (Restore Energy)")
+        print("4) Shop")
+        print("5) Travel")
+        print("6) Achievements")
+        print("7) Quit")
+        choice = input("> ").strip()
+        if choice == "1":
+            success = battle(player)
+            if not success:
+                break
+        elif choice == "2":
+            print(f"\n Name: {player.name}")
+            print(f" Class: {player.player_class}")
+            print(f" HP: {player.hp}/{player.max_hp}")
+            print(f" Attack Power: {player.attack}")
+            print(f" Level: {player.level}")
+            print(f" EXP: {player.exp}/{player.next_level_exp}")
+            print(f" Coins: {player.coins}")
+            print(f" Tools: {', '.join(player.tools)}")
+            print(f" Inventory: {', '.join(player.inventory) or 'Empty'}")
+            print(f" Skills: {', '.join(player.skills) or 'None yet.'}")
+        elif choice == "3":
+            if player.rests_left > 0:
+                player.heal(player.max_hp)
+                player.rests_left -= 1
+                print(f"{Fore.BLUE}You feel refreshed! Rests left: {player.rests_left}{Style.RESET_ALL}")
+                rand_event(player, player.location)
+            else:
+                print(f"{Fore.RED}No rests left!{Style.RESET_ALL}")
+        elif choice == "4":
+            shop(player)
+        elif choice == "5":
+            travel(player)
+        elif choice == "6":
+            view_achievements(player)
+        elif choice == "7":
+            print(f"{Fore.CYAN} Thanks for playing Hack Clubber RPG!{Style.RESET_ALL}")
+            break
+        else:
+            print("?? Invalid choice.")
 
 if __name__ == "__main__":
     start()
