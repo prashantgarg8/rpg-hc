@@ -1,30 +1,18 @@
 import random
 import time
 import os
-from typing import List, Dict
 
-try:
-    from colorama import init, Fore, Style
-    init(autoreset=True)
-except ImportError:
+hello = "hey"
 
-    class Dummy:
+logo = """
 
-        def __getattr__(self, x):
-            return ""
-
-    Fore = Dummy()
-    Style = Dummy()
-
-logo = rf"""
-{Fore.CYAN}
  _    _            _     _____ _       _     _             
-| |  | |          | |   /  __ \ |     | |   | |            
-| |__| | __ _  ___| | _ | /  \/ | ___ | |__ | |__   ___ _ __ 
-|  __  |/ _` |/ __| |/ / | |   | |/ _ \| '_ \| '_ \ / _ \ '__|
-| |  | | (_| | (__|   <  | \__/\ | (_) | |_) | |_) |  __/ |   
-|_|  |_|\__,_|\___|_|\_\  \____/_|\___/|_.__/|_.__/ \___|_|   
-{Style.RESET_ALL}
+| |  | |          | |   /  __ \\ |     | |   | |            
+| |__| | __ _  ___| | _ | /  \\/ | ___ | |__ | |__   ___ _ __ 
+|  __  |/ _` |/ __| |/ / | |   | |/ _ \\| '_ \\| '_ \\ / _ \\ '__|
+| |  | | (_| | (__|   <  | \\__/\\ | (_) | |_) | |_) |  __/ |   
+|_|  |_|\\__,_|\\___|_|\\_\\  \\____/_|\\___/|_.__/|_.__/ \\___|_|   
+
 """
 
 
@@ -36,7 +24,8 @@ class Player:
         self.level = 1
         self.exp = 0
         self.lvlupcp = 50
-        self.hp = self.max_hp = role['hp']
+        self.max_hp = role['hp']
+        self.hp = self.max_hp
         self.attack = list(role['attack'])
         self.coins = 0
         self.inventory = []
@@ -45,48 +34,59 @@ class Player:
         self.achivesments = set()
         self.location = "Coworking Space"
         self.rests_left = 3
+        # messy flag
+        self.buff_turns = 0
 
     def gain_exp(self, amount):
-        self.exp += amount
+        self.exp = self.exp + amount
+        # levelling loop
         while self.exp >= self.lvlupcp:
-            self.exp -= self.lvlupcp
-            self.level += 1
-            self.max_hp += 20
+            self.exp = self.exp - self.lvlupcp
+            self.level = self.level + 1
+            self.max_hp = self.max_hp + 20
             self.hp = self.max_hp
-            self.attack[0] += 2
-            self.attack[1] += 2
+            # increase both attack bounds
+            self.attack[0] = self.attack[0] + 2
+            self.attack[1] = self.attack[1] + 2
             self.lvlupcp = int(self.lvlupcp * 1.4)
-            print(
-                f"{Fore.YELLOW}Whoa! You hit level {self.level}. Time to flex!{Style.RESET_ALL}"
-            )
+            print("Whoa! You hit level " + str(self.level) + ". Time to flex!")
             self.unlock_skill()
 
     def unlock_skill(self):
-        skill_options = ["Debug Surge", "Stack Overflow", "Pizza Heal"]
-        for s in skill_options:
+        opts = ["Debug Surge", "Stack Overflow", "Pizza Heal"]
+        for s in opts:
             if s not in self.skills:
                 self.skills.append(s)
-                print(f"{Fore.MAGENTA}Unlocked skill: {s}!{Style.RESET_ALL}")
+                print("Unlocked skill: " + s + "!")
                 break
 
     def heal(self, amount):
-        self.hp = min(self.max_hp, self.hp + amount)
-        print(
-            f"{Fore.GREEN}Healed for {amount}! HP is now {self.hp}/{self.max_hp}.{Style.RESET_ALL}"
-        )
+        self.hp = self.hp + amount
+        if self.hp > self.max_hp:
+            self.hp = self.max_hp
+        print("Healed for " + str(amount) + "! HP is now " + str(self.hp) +
+              "/" + str(self.max_hp) + ".")
 
 
 class Enemy:
 
-    def __init__(self, info: Dict):
+    def __init__(self, info):
         self.name = info['name']
-        self.max_hp = self.hp = info['hp']
+        self.max_hp = info['hp']
+        self.hp = info['hp']
         self.attack = list(info['attack'])
         self.exp = info['exp']
-        self.coins = info.get('coins', random.randint(10, 25))
+        # coins sometimes passed else random
+        if 'coins' in info:
+            self.coins = info['coins']
+        else:
+            self.coins = random.randint(10, 25)
         self.is_boss = info.get('is_boss', False)
+        self.skipped_turn = False
+        self.buff_turns = 0
 
     def decide_move(self, player):
+        # simple ai for enemy, beginner style
         return 'attack'
 
 
@@ -114,18 +114,24 @@ dev_roles = {
 }
 
 
-def choose_class() -> Dict:
-    print("\nChoose your class:")
-    for i, (cls, stats) in enumerate(catagories.items(), 1):
+def choose_class():
+    print("")
+    print("Choose your class:")
+    i = 1
+    keys = list(dev_roles.keys())
+    for k in keys:
+        stats = dev_roles[k]
         print(
-            f"{i}) {cls} - HP: {stats['hp']} | ATK: {stats['attack']} | Tools: {', '.join(stats['tools'])}"
-        )
+            str(i) + ") " + k + " - HP: " + str(stats['hp']) + " | ATK: " +
+            str(stats['attack']) + " | Tools: " + ", ".join(stats['tools']))
+        i = i + 1
     while True:
         choice = input("> ").strip()
         try:
             idx = int(choice)
-            if 1 <= idx <= len(catagories):
-                return list(catagories.values())[idx - 1]
+            if 1 <= idx <= len(keys):
+                # return the role dict
+                return dev_roles[keys[idx - 1]]
         except:
             pass
         print("Invalid. Enter a number to pick your class.")
@@ -172,8 +178,11 @@ ENEMY_TEMPLATES = [{
 
 
 def make_enemy(level):
+    # if boss level
     if level % 5 == 0:
-        return Enemy([e for e in ENEMY_TEMPLATES if e.get("is_boss")][0])
+        for e in ENEMY_TEMPLATES:
+            if e.get("is_boss"):
+                return Enemy(e.copy())
     options = [e for e in ENEMY_TEMPLATES if not e.get("is_boss")]
     template = random.choice(options)
     scale = 1 + 0.08 * (level - 1)
@@ -186,121 +195,18 @@ def make_enemy(level):
     return Enemy(info)
 
 
-def attack(attacker, defender):
-    dmg = random.randint(*attacker.attack)
+def attack(a, d):
+    # a attacker, d defender
+    dmg = random.randint(a.attack[0], a.attack[1])
     crit = random.random() < 0.10
     if crit:
         dmg = int(dmg * 1.5)
-        print(
-            f"{Fore.YELLOW}{attacker.name} lands a CRITICAL hit!{Style.RESET_ALL}"
-        )
-    defender.hp = max(0, defender.hp - dmg)
-    print(
-        f"{attacker.name} hits {defender.name} for {dmg} damage! ({defender.hp}/{defender.max_hp} HP left)"
-    )
-
-
-def fights(player: Player):
-    enemy = make_enemy(player.level)
-    print(f"\n {enemy.name} jumps out at you! (HP: {enemy.hp})")
-    if enemy.is_boss:
-        print(f"{Fore.RED}BOSS FIGHT! This won't be easy...{Style.RESET_ALL}")
-    while enemy.hp > 0 and player.hp > 0:
-        print(
-            f"\n{Fore.CYAN}Your HP: {player.hp}/{player.max_hp} | {enemy.name}'s HP: {enemy.hp}/{enemy.max_hp}{Style.RESET_ALL}"
-        )
-        print("1) Attack   2) Use Item   3) Skill   4) Attempt Escape")
-        move = input("> ").strip()
-        if move == "1":
-            attack(player, enemy)
-        elif move == "2":
-            print("Your inventory:", ", ".join([i for i in player.inventory])
-                  or "Empty")
-            continue
-        elif move == "3":
-            print("Skills:", ", ".join(player.skills) or "None yet.")
-            continue
-        elif move == "4":
-            if enemy.is_boss:
-                print(
-                    f"{Fore.RED}You can't escape a boss fight!{Style.RESET_ALL}"
-                )
-            elif random.random() < 0.3:
-                print(
-                    f"{Fore.GREEN}You slipped away safely...{Style.RESET_ALL}")
-                return True
-            else:
-                print(f"{Fore.RED}Couldn't escape!{Style.RESET_ALL}")
-        else:
-            print("Choose a valid move.")
-            continue
-        if enemy.hp > 0:
-            if enemy.decide_move(player) == "attack":
-                attack(enemy, player)
-    if player.hp <= 0:
-        print(
-            f"{Fore.LIGHTRED_EX}\nYou burned out. Start hydrating and coding again soon!{Style.RESET_ALL}"
-        )
-        return False
-    print(
-        f"{Fore.GREEN} You debugged {enemy.name}! +{enemy.exp} EXP, +{enemy.coins} coins!{Style.RESET_ALL}"
-    )
-    player.gain_exp(enemy.exp)
-    player.coins += enemy.coins
-    return True
-
-
-def mmenu(player: Player):
-    while True:
-        print("\n--- Main Menu ---")
-        print("1) Take On a Challenge")
-        print("2) View Stats")
-        print("3) Rest (Restore Energy)")
-        print("4) Quit")
-        choice = input("> ").strip()
-        if choice == "1":
-            success = fights(player)
-            if not success:
-                break
-        elif choice == "2":
-            print(f"\nName: {player.name}")
-            print(
-                f" Class: {list(catagories.keys())[list(catagories.values()).index(player.role)]}"
-            )
-            print(f" HP: {player.hp}/{player.max_hp}")
-            print(f" Attack Power: {player.attack}")
-            print(f" Level: {player.level}")
-            print(f" EXP: {player.exp}/{player.lvlupcp}")
-            print(f" Coins: {player.coins}")
-            print(f" Tools: {', '.join(player.tools)}")
-            print(f" Inventory: {', '.join(player.inventory) or 'Empty'}")
-            print(f" Skills: {', '.join(player.skills) or 'None yet.'}")
-        elif choice == "3":
-            if player.rests_left > 0:
-                player.heal(player.max_hp)
-                player.rests_left -= 1
-                print(
-                    f"{Fore.BLUE}You feel refreshed! Rest uses left: {player.rests_left}{Style.RESET_ALL}"
-                )
-            else:
-                print(
-                    f"{Fore.RED}No rests left—push through!{Style.RESET_ALL}")
-        elif choice == "4":
-            print(
-                f"{Fore.CYAN}Thanks for playing Hack Clubber RPG!{Style.RESET_ALL}"
-            )
-            break
-        else:
-            print("?? Invalid choice.")
-
-
-def start():
-    print(logo)
-    print("Welcome to Hack Clubber RPG!\n")
-    name = input("Your Hack Club name: ").strip() or "Hack Clubber"
-    pclass = choose_class()
-    player = Player(name, pclass)
-    mmenu(player)
+        print(a.name + " lands a CRITICAL hit!")
+    d.hp = d.hp - dmg
+    if d.hp < 0:
+        d.hp = 0
+    print(a.name + " hits " + d.name + " for " + str(dmg) + " damage! (" +
+          str(d.hp) + "/" + str(d.max_hp) + " HP left)")
 
 
 ITEMS = {
@@ -333,28 +239,35 @@ ITEMS = {
         "power": 20,
         "cost": 8,
         "desc": "Minor HP recovery."
-    },
+    }
 }
 
 
 def shop(player):
-    print(f"\n{Fore.LIGHTYELLOW_EX}== Code Supply Shop =={Style.RESET_ALL}")
+    print("")
+    print("== Code Supply Shop ==")
     while True:
-        print("Coins:", player.coins)
-        for i, (iname, data) in enumerate(ITEMS.items(), 1):
-            print(f"{i}. {iname} ({data['cost']}g): {data.get('desc','')}")
+        print("Coins: " + str(player.coins))
+        j = 1
+        keys = list(ITEMS.keys())
+        for name in keys:
+            data = ITEMS[name]
+            print(
+                str(j) + ". " + name + " (" + str(data['cost']) + "g): " +
+                data.get('desc', ''))
+            j = j + 1
         print("X. Leave Shop")
         choice = input("Buy what? > ").strip().upper()
         if choice == "X":
             break
         try:
             idx = int(choice)
-            if 1 <= idx <= len(ITEMS):
-                item = list(ITEMS.keys())[idx - 1]
+            if 1 <= idx <= len(keys):
+                item = keys[idx - 1]
                 if player.coins >= ITEMS[item]['cost']:
-                    player.coins -= ITEMS[item]['cost']
+                    player.coins = player.coins - ITEMS[item]['cost']
                     player.inventory.append(item)
-                    print(f"{Fore.GREEN}Purchased {item}!{Style.RESET_ALL}")
+                    print("Purchased " + item + "!")
                 else:
                     print("Not enough coins.")
             else:
@@ -367,36 +280,38 @@ def use_item(player, in_fights=False, target=None):
     if not player.inventory:
         print("Inventory empty!")
         return False
-    print("Inventory:", ", ".join(player.inventory))
+    print("Inventory: " + ", ".join(player.inventory))
     item = input("Use what? ").strip()
     if item not in player.inventory:
         print("Not in inventory.")
         return False
-
     info = ITEMS.get(item)
     if not info:
         print("Unknown item.")
         return False
-    if info["type"] == "heal":
+    t = info["type"]
+    if t == "heal":
         player.heal(info["power"])
-    elif info["type"] == "buff":
+    elif t == "buff":
         if in_fights and target:
-            target.attack[0] += info["power"]
-            target.attack[1] += info["power"]
-            print(
-                f"Attack power increased by {info['power']} for {info['duration']} turns!"
-            )
+            target.attack[0] = target.attack[0] + info["power"]
+            target.attack[1] = target.attack[1] + info["power"]
             target.buff_turns = info['duration']
+            print("Attack power increased by " + str(info['power']) + " for " +
+                  str(info['duration']) + " turns!")
         else:
             print("Can only use in fights!")
-    elif info["type"] == "special":
+    elif t == "special":
         if in_fights and target:
             target.skipped_turn = True
             print("The enemy looks confused... turn skipped!")
         else:
             print("Can only use in fights!")
-
-    player.inventory.remove(item)
+    # remove item
+    try:
+        player.inventory.remove(item)
+    except:
+        pass
     return True
 
 
@@ -424,51 +339,41 @@ levntS = {
 }
 
 
-def travel(player):
-    print("\nlocation:")
-    for i, loc in enumerate(location, 1):
-        print(f"{i}) {loc}")
-    print("X) Stay put")
-    choice = input("Go where? > ").strip().upper()
-    if choice == "X":
-        return
-    try:
-        idx = int(choice)
-        if 1 <= idx <= len(location):
-            new_loc = location[idx - 1]
-            player.location = new_loc
-            rand_event(player, new_loc)
-        else:
-            print("Invalid location.")
-    except ValueError:
-        print("Type number or X.")
-
-
-def rand_event(player, location):
-    if location in levntS and random.random() < 0.6:
-        event = random.choice(levntS[location])
-        print(f"{Fore.LIGHTMAGENTA_EX}Event: {event}{Style.RESET_ALL}")
-        if "Restore" in event:
-            hp = int([s for s in event.split() if s.isdigit()][0])
-            player.heal(hp)
+def rand_event(player, locationn):
+    if locationn in levntS and random.random() < 0.6:
+        event = random.choice(levntS[locationn])
+        print("Event: " + event)
+        if "Restore" in event or "Restore" in event:
+            # get number from string
+            nums = [int(s) for s in event.split() if s.isdigit()]
+            if nums:
+                hp = nums[0]
+                player.heal(hp)
         elif "gain" in event and "coin" in event:
-            coins = int([s for s in event.split() if s.isdigit()][0])
-            player.coins += coins
-            print(f"Gained {coins} coins!")
-        elif "-hp" in event or "-" in event:
-            dmg = int([
-                s for s in event.replace("-", " -").split()
-                if s.lstrip("-").isdigit()
-            ][0])
-            player.hp = max(0, player.hp + dmg)
-            print(f"Ouch! HP now {player.hp}")
+            nums = [int(s) for s in event.split() if s.isdigit()]
+            if nums:
+                coins = nums[0]
+                player.coins = player.coins + coins
+                print("Gained " + str(coins) + " coins!")
+        elif "-" in event:
+            # crude negative parse
+            parts = event.replace("-", " -").split()
+            nums = [int(s) for s in parts if s.lstrip("-").isdigit()]
+            if nums:
+                dmg = nums[0]
+                player.hp = player.hp + dmg
+                if player.hp < 0:
+                    player.hp = 0
+                print("Ouch! HP now " + str(player.hp))
         elif "exp" in event:
-            exp = int([s for s in event.split() if s.isdigit()][0])
-            player.gain_exp(exp)
+            nums = [int(s) for s in event.split() if s.isdigit()]
+            if nums:
+                exp = nums[0]
+                player.gain_exp(exp)
         elif "Debug Kit" in event:
             player.inventory.append("Debug Kit")
             print("Found a Debug Kit!")
-        elif "snack bar" in event:
+        elif "snack" in event or "Snack" in event:
             player.inventory.append("Snack Bar")
             print("Yum! Got a Snack Bar.")
         elif "rare item" in event:
@@ -498,56 +403,53 @@ def check_achivesments(player, context=None):
         unlocked.add("Boss Buster")
     for ach, _ in achivesments:
         if ach in unlocked and ach not in player.achivesments:
-            print(
-                f"{Fore.YELLOW}Achievement unlocked: {ach}!{Style.RESET_ALL}")
+            print("Achievement unlocked: " + ach + "!")
             player.achivesments.add(ach)
 
 
 def achivess_show(player):
-    print("\nachivesments unlocked:")
+    print("")
+    print("achivesments unlocked:")
     for ach, desc in achivesments:
         got = ach in player.achivesments
         mark = "[X]" if got else "[ ]"
-        print(f"{mark} {ach}: {desc}")
+        print(mark + " " + ach + ": " + desc)
 
 
-def fights(player: Player):
+def fights(player):
     enemy = make_enemy(player.level)
-    print(f"\n {enemy.name} appears! (HP: {enemy.hp})")
+    print("")
+    print(" " + enemy.name + " appears! (HP: " + str(enemy.hp) + ")")
     if enemy.is_boss:
-        print(f"{Fore.RED}BOSS FIGHT!{Style.RESET_ALL}")
+        print("BOSS FIGHT!")
 
     buff = 0
-
     while enemy.hp > 0 and player.hp > 0:
-        print(
-            f"\n{Fore.CYAN}Your HP: {player.hp}/{player.max_hp} | {enemy.name}'s HP: {enemy.hp}/{enemy.max_hp}{Style.RESET_ALL}"
-        )
-
+        print("")
+        print("Your HP: " + str(player.hp) + "/" + str(player.max_hp) + " | " +
+              enemy.name + "'s HP: " + str(enemy.hp) + "/" + str(enemy.max_hp))
         print("1) Attack   2) Use Item   3) Skill   4) Attempt Escape")
         move = input("> ").strip()
         if move == "1":
             attack(player, enemy)
         elif move == "2":
-            use_item(player, in_fights=True, target=player)
-            continue
+            use_item(player, in_fights=True, target=enemy if False else player)
+
         elif move == "3":
             if player.skills:
-                print("Skills:", ", ".join(player.skills))
+                print("Skills: " + ", ".join(player.skills))
                 print("Not implemented yet (coming soon!)")
             else:
                 print("You have no skills yet.")
             continue
         elif move == "4":
             if enemy.is_boss:
-                print(f"{Fore.RED}Can't escape this time!{Style.RESET_ALL}")
+                print("Can't escape this time!")
             elif random.random() < 0.25:
-                print(
-                    f"{Fore.GREEN}You slipped away successfully!{Style.RESET_ALL}"
-                )
+                print("You slipped away successfully!")
                 return True
             else:
-                print(f"{Fore.RED}Couldn't escape!{Style.RESET_ALL}")
+                print("Couldn't escape!")
         else:
             print("Choose a valid move.")
             continue
@@ -560,43 +462,70 @@ def fights(player: Player):
                 attack(enemy, player)
             elif en_move == "heal":
                 heal_amt = min(25, enemy.max_hp - enemy.hp)
-                enemy.hp += heal_amt
-                print(
-                    f"{Fore.BLUE}{enemy.name} repairs itself for {heal_amt}!{Style.RESET_ALL}"
-                )
-
+                enemy.hp = enemy.hp + heal_amt
+                print(enemy.name + " repairs itself for " + str(heal_amt) +
+                      "!")
             else:
                 if random.random() < 0.5:
                     print(
-                        f"{enemy.name} tries to confuse your code! Lose your next attack turn."
+                        enemy.name +
+                        " tries to confuse your code! Lose your next attack turn."
                     )
+                    # set a flag but we do not enforce strictly, just print to keep behaviour similar
+                    enemy.skipped_turn = True
                 else:
-                    print(f"{enemy.name} lags—no effect this turn.")
+                    print(enemy.name + " lags—no effect this turn.")
 
+            # handle buff turns on player (from using Debug Kit)
             if hasattr(player, 'buff_turns') and player.buff_turns > 0:
-                player.buff_turns -= 1
+                player.buff_turns = player.buff_turns - 1
                 if player.buff_turns == 0:
-                    player.attack[0] -= 6
-                    player.attack[1] -= 6
+                    player.attack[0] = player.attack[0] - 6
+                    player.attack[1] = player.attack[1] - 6
                     print("Your debug buff faded.")
 
     if player.hp <= 0:
-        print(f"{Fore.LIGHTRED_EX}\nYou burned out...{Style.RESET_ALL}")
+        print("")
+        print("You burned out...")
         return False
-    print(
-        f"{Fore.GREEN} Debugged {enemy.name}! +{enemy.exp} EXP, +{enemy.coins} coins!{Style.RESET_ALL}"
-    )
 
+    print("")
+    print(" Debugged " + enemy.name + "! +" + str(enemy.exp) + " EXP, +" +
+          str(enemy.coins) + " coins!")
     player.gain_exp(enemy.exp)
-    player.coins += enemy.coins
+    player.coins = player.coins + enemy.coins
     check_achivesments(player,
                        context="boss" if enemy.is_boss else "win_fights")
     return True
 
 
-def mmenu(player: Player):
+def travel(player):
+    print("")
+    print("location:")
+    i = 1
+    for loc in location:
+        print(str(i) + ") " + loc)
+        i = i + 1
+    print("X) Stay put")
+    choice = input("Go where? > ").strip().upper()
+    if choice == "X":
+        return
+    try:
+        idx = int(choice)
+        if 1 <= idx <= len(location):
+            new_loc = location[idx - 1]
+            player.location = new_loc
+            rand_event(player, new_loc)
+        else:
+            print("Invalid location.")
+    except ValueError:
+        print("Type number or X.")
+
+
+def mmenu(player):
     while True:
-        print("\n--- Main Menu ---")
+        print("")
+        print("--- Main Menu ---")
         print("1) Take On a Challenge")
         print("2) View Stats")
         print("3) Rest (Restore Energy)")
@@ -610,27 +539,25 @@ def mmenu(player: Player):
             if not success:
                 break
         elif choice == "2":
-            print(f"\n Name: {player.name}")
-            print(f" Class: {player.role}")
-            print(f" HP: {player.hp}/{player.max_hp}")
-            print(f" Attack Power: {player.attack}")
-            print(f" Level: {player.level}")
-            print(f" EXP: {player.exp}/{player.lvlupcp}")
-            print(f" Coins: {player.coins}")
-            print(f" Tools: {', '.join(player.tools)}")
-            print(f" Inventory: {', '.join(player.inventory) or 'Empty'}")
-
-            print(f" Skills: {', '.join(player.skills) or 'None yet.'}")
+            print("")
+            print(" Name: " + player.name)
+            print(" Class: " + str(player.role))
+            print(" HP: " + str(player.hp) + "/" + str(player.max_hp))
+            print(" Attack Power: " + str(player.attack))
+            print(" Level: " + str(player.level))
+            print(" EXP: " + str(player.exp) + "/" + str(player.lvlupcp))
+            print(" Coins: " + str(player.coins))
+            print(" Tools: " + ", ".join(player.tools))
+            print(" Inventory: " + (", ".join(player.inventory) or "Empty"))
+            print(" Skills: " + (", ".join(player.skills) or "None yet."))
         elif choice == "3":
             if player.rests_left > 0:
                 player.heal(player.max_hp)
-                player.rests_left -= 1
-                print(
-                    f"{Fore.BLUE}You feel refreshed! Rests left: {player.rests_left}{Style.RESET_ALL}"
-                )
+                player.rests_left = player.rests_left - 1
+                print("You feel refreshed! Rests left: " + str(player.rests_left)) 
                 rand_event(player, player.location)
             else:
-                print(f"{Fore.RED}No rests left!{Style.RESET_ALL}")
+                print("No rests left!")
         elif choice == "4":
             shop(player)
         elif choice == "5":
@@ -638,15 +565,21 @@ def mmenu(player: Player):
         elif choice == "6":
             achivess_show(player)
         elif choice == "7":
-            print(
-                f"{Fore.CYAN} Thanks for playing Hack Clubber RPG!{Style.RESET_ALL}"
-            )
+            print(" Thanks for playing Hack Clubber RPG!")
             break
         else:
-
             print("?? Invalid choice.")
 
 
-if __name__ == "__main__":
+def start():
+    print(logo)
+    print("Welcome to Hack Clubber RPG!")
+    print("")
+    name = input("Your Hack Club name: ").strip() or "Hack Clubber"
+    pclass = choose_class()
+    player = Player(name, pclass)
+    mmenu(player)
 
+
+if __name__ == "__main__":
     start()
