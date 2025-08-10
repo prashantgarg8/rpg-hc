@@ -6,12 +6,11 @@ hello = "hey"
 
 logo = """
 
- _    _            _     _____ _       _     _             
-| |  | |          | |   /  __ \\ |     | |   | |            
-| |__| | __ _  ___| | _ | /  \\/ | ___ | |__ | |__   ___ _ __ 
-|  __  |/ _` |/ __| |/ / | |   | |/ _ \\| '_ \\| '_ \\ / _ \\ '__|
-| |  | | (_| | (__|   <  | \\__/\\ | (_) | |_) | |_) |  __/ |   
-|_|  |_|\\__,_|\\___|_|\\_\\  \\____/_|\\___/|_.__/|_.__/ \\___|_|   
+ _   _            _     ____ _       _     _               
+| | | | __ _  ___| | __/ ___| |_   _| |__ | |__   ___ _ __ 
+| |_| |/ _` |/ __| |/ / |   | | | | | '_ \| '_ \ / _ \ '__|
+|  _  | (_| | (__|   <| |___| | |_| | |_) | |_) |  __/ |   
+|_| |_|\__,_|\___|_|\_\\____|_|\__,_|_.__/|_.__/ \___|_|   
 
 """
 
@@ -137,7 +136,7 @@ def choose_class():
         print("Invalid. Enter a number to pick your class.")
 
 
-ENEMY_TEMPLATES = [{
+dusmans = [{
     "name": "Segmentation Fault",
     "hp": 45,
     "attack": (8, 15),
@@ -180,10 +179,10 @@ ENEMY_TEMPLATES = [{
 def make_enemy(level):
     # if boss level
     if level % 5 == 0:
-        for e in ENEMY_TEMPLATES:
+        for e in dusmans:
             if e.get("is_boss"):
                 return Enemy(e.copy())
-    options = [e for e in ENEMY_TEMPLATES if not e.get("is_boss")]
+    options = [e for e in dusmans if not e.get("is_boss")]
     template = random.choice(options)
     scale = 1 + 0.08 * (level - 1)
     info = template.copy()
@@ -209,7 +208,7 @@ def attack(a, d):
           str(d.hp) + "/" + str(d.max_hp) + " HP left)")
 
 
-ITEMS = {
+items = {
     "Coffee": {
         "type": "heal",
         "power": 40,
@@ -249,9 +248,9 @@ def shop(player):
     while True:
         print("Coins: " + str(player.coins))
         j = 1
-        keys = list(ITEMS.keys())
+        keys = list(items.keys())
         for name in keys:
-            data = ITEMS[name]
+            data = items[name]
             print(
                 str(j) + ". " + name + " (" + str(data['cost']) + "g): " +
                 data.get('desc', ''))
@@ -264,8 +263,8 @@ def shop(player):
             idx = int(choice)
             if 1 <= idx <= len(keys):
                 item = keys[idx - 1]
-                if player.coins >= ITEMS[item]['cost']:
-                    player.coins = player.coins - ITEMS[item]['cost']
+                if player.coins >= items[item]['cost']:
+                    player.coins = player.coins - items[item]['cost']
                     player.inventory.append(item)
                     print("Purchased " + item + "!")
                 else:
@@ -285,7 +284,7 @@ def use_item(player, in_fights=False, target=None):
     if item not in player.inventory:
         print("Not in inventory.")
         return False
-    info = ITEMS.get(item)
+    info = items.get(item)
     if not info:
         print("Unknown item.")
         return False
@@ -554,7 +553,8 @@ def mmenu(player):
             if player.rests_left > 0:
                 player.heal(player.max_hp)
                 player.rests_left = player.rests_left - 1
-                print("You feel refreshed! Rests left: " + str(player.rests_left)) 
+                print("You feel refreshed! Rests left: " +
+                      str(player.rests_left))
                 rand_event(player, player.location)
             else:
                 print("No rests left!")
